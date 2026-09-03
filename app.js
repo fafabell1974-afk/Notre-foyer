@@ -162,6 +162,7 @@ form('#budgetForm', () => {
   }
 });
 
+// Écouteur pour la reconnaissance de photo (OCR Tesseract avec filtre)
 if (cameraInput && ocrStatus) {
   cameraInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -171,19 +172,20 @@ if (cameraInput && ocrStatus) {
     try {
       if (typeof Tesseract === 'undefined') throw new Error("Tesseract non chargé");
       const result = await Tesseract.recognize(file, 'fra');
-      const text = result.data.text.trim();
       
-      if (text) {
-        const cleanedText = text.split('\n')[0].replace(/[^a-zA-Z0-9 àâäéèêëîïôöùûüçÂÊÎÔÛÄËÏÖÜÀÆÆÇÉÈ]/g, '').trim();
-        if (cleanedText) {
-          data.shopping.push({ id: id(), name: cleanedText, done: false });
-          save();
-          ocrStatus.textContent = "Ajouté !";
-        } else {
-          ocrStatus.textContent = "Texte non lisible.";
-        }
+      // Filtrage des lignes pour exclure les bruits et petits morceaux (moins de 3 caractères)
+      const lines = result.data.text
+        .split('\n')
+        .map(l => l.replace(/[^a-zA-Z0-9 àâäéèêëîïôöùûüçÂÊÎÔÛÄËÏÖÜÀÆÆÇÉÈ]/g, '').trim())
+        .filter(l => l.length >= 3);
+
+      if (lines.length > 0) {
+        const cleanedText = lines[0];
+        data.shopping.push({ id: id(), name: cleanedText, done: false });
+        save();
+        ocrStatus.textContent = "Ajouté !";
       } else {
-        ocrStatus.textContent = "Aucun texte détecté.";
+        ocrStatus.textContent = "Texte non lisible ou trop court.";
       }
     } catch (err) {
       console.error(err);

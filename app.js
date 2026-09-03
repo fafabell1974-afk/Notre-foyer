@@ -106,7 +106,7 @@ function render() {
   if (document.querySelector('#foodList')) {
     document.querySelector('#foodList').innerHTML = fr.length 
       ? fr.map(x => {
-          let n = days(x.date), lab = n < 0 ? `Périmé depuis ${-n} jour${-n > 1 ? 's' : ''}` : n === 0 ? 'Expire aujourd’hui' : n === 1 ? 'Expire demain' : `Dans ${n} jours`;
+          let n = days(x.date), lab = n < 0 ? `Périmé depuis ${-n} jour${-n > 1 ? 's' : ''}` : n === 0 ? 'Expire aujourd'hui' : n === 1 ? 'Expire demain' : `Dans ${n} jours`;
           return `<div class="item ${n < 0 ? 'expired' : n <= 3 ? 'warn' : ''}"><div><b>${esc(x.name)}</b><span class="meta">${fd(x.date)} · ${lab}</span></div><button class="del" data-type="fridge" data-id="${x.id}">Supprimer</button></div>`;
         }).join('') 
       : '<div class="empty">Aucun aliment 🧊</div>';
@@ -162,30 +162,68 @@ form('#budgetForm', () => {
   }
 });
 
-// Écouteur pour la reconnaissance de photo (OCR Tesseract avec filtre)
+// Fonction utilitaire pour charger l'image
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Fonction de prétraitement (Noir & Blanc à fort contraste)
+function preprocessImage(img) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  ctx.drawImage(img, 0, 0);
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imgData.data;
+  
+  // Conversion en niveau de gris et contraste renforcé
+  for (let i = 0; i < data.length; i += 4) {
+    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    // Binarisation (Seuillage clair/sombre)
+    const v = avg > 128 ? 255 : 0;
+    data[i] = v;     // Rouge
+    data[i + 1] = v; // Vert
+    data[i + 2] = v; // Bleu
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+// Écouteur pour la reconnaissance de photo (OCR Tesseract avec filtrage par confiance)
 if (cameraInput && ocrStatus) {
   cameraInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     ocrStatus.textContent = "Analyse en cours…";
     try {
       if (typeof Tesseract === 'undefined') throw new Error("Tesseract non chargé");
-      const result = await Tesseract.recognize(file, 'fra');
       
-      // Filtrage des lignes pour exclure les bruits et petits morceaux (moins de 3 caractères)
-      const lines = result.data.text
-        .split('\n')
-        .map(l => l.replace(/[^a-zA-Z0-9 àâäéèêëîïôöùûüçÂÊÎÔÛÄËÏÖÜÀÆÆÇÉÈ]/g, '').trim())
-        .filter(l => l.length >= 3);
-
-      if (lines.length > 0) {
-        const cleanedText = lines[0];
+      const img = await loadImage(file);
+      const processedImage = preprocessImage(img);
+      
+      // Utilise l'API words pour filtrer par confiance
+      const result = await Tesseract.recognize(processedImage, 'fra');
+      
+      // Récupère les mots avec score de confiance > 50
+      const validWords = result.data.words
+        .filter(w => w.confidence > 50 && w.text.length >= 3)
+        .map(w => w.text.replace(/[^a-zA-Z0-9àâäéèêëîïôöùûüçÂÊÎÔÛÄËÏÖÜÀÆÇÉÈ]/g, '').trim())
+        .filter(w => w.length >= 3);
+      
+      if (validWords.length > 0) {
+        // Prend le mot le plus confiant (généralement le premier)
+        const cleanedText = validWords[0];
         data.shopping.push({ id: id(), name: cleanedText, done: false });
         save();
         ocrStatus.textContent = "Ajouté !";
       } else {
-        ocrStatus.textContent = "Texte non lisible ou trop court.";
+        ocrStatus.textContent = "Texte non lisible.";
       }
     } catch (err) {
       console.error(err);

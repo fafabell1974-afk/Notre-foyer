@@ -150,15 +150,15 @@ trashDay.innerHTML = DAYS.map(x => `<option>${x}</option>`).join('');
 eventDate.value = iso(new Date());
 foodDate.value = iso(new Date());
 
-// Gestionnaire de clics corrigé pour l'ouverture, la fermeture et la suppression
 document.addEventListener('click', e => {
   let o = e.target.closest('[data-open]');
   if (o) { document.querySelector('#' + o.dataset.open).showModal(); return; }
   if (e.target.closest('[data-close]')) { e.target.closest('dialog').close(); return; }
   
-  let btnDel = e.target.closest('.del');
-  if (btnDel) {
-    const ds = {
+  // Correction de la gestion des boutons de suppression
+  let delBtn = e.target.closest('.del');
+  if (delBtn) {
+    const map = {
       delShop: 'shopping',
       delEvent: 'events',
       delFood: 'fridge',
@@ -166,9 +166,10 @@ document.addEventListener('click', e => {
       delTrash: 'trash',
       delExp: 'expenses'
     };
-    for (const [key, prop] of Object.entries(ds)) {
-      if (btnDel.dataset[key]) {
-        data[prop] = data[prop].filter(x => x.id !== btnDel.dataset[key]);
+    for (const [datasetKey, prop] of Object.entries(map)) {
+      const itemId = delBtn.dataset[datasetKey];
+      if (itemId) {
+        data[prop] = data[prop].filter(x => x.id !== itemId);
         save();
         break;
       }

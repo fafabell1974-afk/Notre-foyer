@@ -150,15 +150,29 @@ trashDay.innerHTML = DAYS.map(x => `<option>${x}</option>`).join('');
 eventDate.value = iso(new Date());
 foodDate.value = iso(new Date());
 
+// Gestionnaire de clics corrigé pour l'ouverture, la fermeture et la suppression
 document.addEventListener('click', e => {
   let o = e.target.closest('[data-open]');
   if (o) { document.querySelector('#' + o.dataset.open).showModal(); return; }
   if (e.target.closest('[data-close]')) { e.target.closest('dialog').close(); return; }
-  let a = e.target.closest('[data-del-]');
-  if (a) {
-    let ds = [['shop', 'shopping'], ['event', 'events'], ['food', 'fridge'], ['task', 'tasks'], ['trash', 'trash'], ['exp', 'expenses']];
-    for (const [k, p] of ds) if (a.dataset['del' + k[0].toUpperCase() + k.slice(1)]) data[p] = data[p].filter(x => x.id !== a.dataset['del' + k[0].toUpperCase() + k.slice(1)]);
-    save();
+  
+  let btnDel = e.target.closest('.del');
+  if (btnDel) {
+    const ds = {
+      delShop: 'shopping',
+      delEvent: 'events',
+      delFood: 'fridge',
+      delTask: 'tasks',
+      delTrash: 'trash',
+      delExp: 'expenses'
+    };
+    for (const [key, prop] of Object.entries(ds)) {
+      if (btnDel.dataset[key]) {
+        data[prop] = data[prop].filter(x => x.id !== btnDel.dataset[key]);
+        save();
+        break;
+      }
+    }
   }
 });
 
